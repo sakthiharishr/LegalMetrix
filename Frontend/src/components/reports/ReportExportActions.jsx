@@ -1,44 +1,37 @@
 import React from 'react';
 import { GlassButton } from '../ui/GlassButton';
-import { Download, FileText, Printer, Loader } from 'lucide-react';
+import { Download, FileSpreadsheet, Printer, Loader } from 'lucide-react';
 
-export const ReportExportActions = ({ exportState, exportMessage, handleExportPdf, handleExportCsv }) => {
+export const ReportExportActions = ({ exportState, handleExportPdf, handleExportCsv }) => {
+  const busy = exportState !== 'IDLE';
   return (
-    <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-end' }}>
-      
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <GlassButton 
-          variant="secondary" 
-          icon={<Printer size={16} />}
-          onClick={() => window.print()}
-          disabled={exportState !== 'IDLE'}
-        >
-          Print Report
-        </GlassButton>
-        <GlassButton 
-          variant="secondary" 
-          icon={exportState === 'PREPARING_CSV' ? <Loader size={16} className="spin" /> : <FileText size={16} />}
-          onClick={handleExportCsv}
-          disabled={exportState !== 'IDLE'}
-        >
-          {exportState === 'PREPARING_CSV' ? 'Preparing CSV...' : 'Export CSV'}
-        </GlassButton>
-        <GlassButton 
-          variant="primary" 
-          icon={exportState === 'PREPARING_PDF' ? <Loader size={16} className="spin" /> : <Download size={16} />}
-          onClick={handleExportPdf}
-          disabled={exportState !== 'IDLE'}
-        >
-          {exportState === 'PREPARING_PDF' ? 'Preparing PDF...' : 'Export PDF'}
-        </GlassButton>
-      </div>
+    <div className="no-print" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <GlassButton variant="secondary" icon={<Printer size={16} />} onClick={() => window.print()} disabled={busy}>
+        Print
+      </GlassButton>
+      <GlassButton variant="secondary" onClick={handleExportCsv} disabled={busy}
+        icon={exportState === 'PREPARING_CSV' ? <Loader size={16} className="spin" /> : <FileSpreadsheet size={16} />}>
+        {exportState === 'PREPARING_CSV' ? 'Preparing CSV...' : 'Export CSV'}
+      </GlassButton>
+      <GlassButton variant="primary" onClick={handleExportPdf} disabled={busy}
+        icon={exportState === 'PREPARING_PDF' ? <Loader size={16} className="spin" /> : <Download size={16} />}>
+        {exportState === 'PREPARING_PDF' ? 'Preparing PDF...' : 'Export PDF'}
+      </GlassButton>
+    </div>
+  );
+};
 
-      {exportMessage && (
-        <div style={{ fontSize: '0.8rem', color: 'var(--color-brand-cyan-light)', padding: '0.5rem 1rem', background: 'rgba(6, 182, 212, 0.1)', borderRadius: 'var(--radius-md)' }}>
-          {exportMessage}
-        </div>
-      )}
-
+/** Result of the last export: green on success, red on failure. */
+export const ExportMessage = ({ message }) => {
+  if (!message) return null;
+  const failed = /fail|error|expired/i.test(message);
+  const color = failed ? 'var(--color-status-violation)' : 'var(--color-status-compliant)';
+  return (
+    <div role={failed ? 'alert' : 'status'} className="no-print" style={{
+      fontSize: '0.8rem', padding: '0.6rem 0.9rem', borderRadius: 'var(--radius-md)', color,
+      border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`, background: `color-mix(in srgb, ${color} 10%, transparent)`,
+    }}>
+      {message}
     </div>
   );
 };

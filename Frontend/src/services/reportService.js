@@ -20,28 +20,13 @@ export const reportService = {
     }
   },
 
+  // Exports go through the shared client so they carry the signed-in session (and refresh it).
   async requestPdfExport(params) {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-    const token = localStorage.getItem('legalmetrix_access_token');
-    const res = await fetch(`${baseUrl}${API_ENDPOINTS.REPORTS_EXPORT_PDF}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(params || {})
-    });
-    if (!res.ok) throw new Error(`PDF export failed (${res.status})`);
-    return await res.blob();
+    return api.post(API_ENDPOINTS.REPORTS_EXPORT_PDF, params || {}, { responseType: 'blob' });
   },
 
   async requestCsvExport(params) {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-    const token = localStorage.getItem('legalmetrix_access_token');
-    const res = await fetch(`${baseUrl}${API_ENDPOINTS.REPORTS_EXPORT_CSV}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(params || {})
-    });
-    if (!res.ok) throw new Error(`CSV export failed (${res.status})`);
-    return await res.blob();
+    return api.post(API_ENDPOINTS.REPORTS_EXPORT_CSV, params || {}, { responseType: 'blob' });
   }
 };
 

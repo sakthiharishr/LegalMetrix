@@ -1,11 +1,18 @@
 import React from 'react';
 import { GlassCard } from '../ui/GlassCard';
 
+const OUTCOME_LABELS = {
+  CONFIRM_FINDING: 'Violation confirmed',
+  INVALIDATE_FINDING: 'Finding invalidated',
+  NEEDS_FURTHER_REVIEW: 'Further review requested',
+  PENDING_REVIEW: 'Pending review',
+};
+
 export const ReportPreview = ({ analytics }) => {
   if (!analytics) return null;
 
   return (
-    <GlassCard variant="default" style={{ padding: '2rem', background: 'var(--color-bg-primary)', color: 'var(--color-text-primary)' }}>
+    <GlassCard variant="default" style={{ padding: '2rem', color: 'var(--color-text-primary)' }}>
       {/* Report Header */}
       <div style={{ textAlign: 'center', marginBottom: '2rem', borderBottom: '2px solid var(--color-text-secondary)', paddingBottom: '1rem' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 0.5rem 0', textTransform: 'uppercase', letterSpacing: '2px' }}>
@@ -73,7 +80,7 @@ export const ReportPreview = ({ analytics }) => {
           <tbody>
             {analytics.officerReviewOutcomes.map(outcome => (
               <tr key={outcome.outcome} style={{ borderBottom: '1px dashed rgba(var(--tint-rgb), 0.1)' }}>
-                <td style={{ padding: '0.5rem' }}>{outcome.outcome.replace(/_/g, ' ')}</td>
+                <td style={{ padding: '0.5rem' }}>{OUTCOME_LABELS[outcome.outcome] || outcome.outcome.replace(/_/g, ' ').toLowerCase()}</td>
                 <td style={{ padding: '0.5rem' }}>{outcome.count}</td>
               </tr>
             ))}
@@ -90,7 +97,7 @@ export const ReportPreview = ({ analytics }) => {
           <div key={issue.id} style={{ marginBottom: '1rem', padding: '0.5rem', borderLeft: '3px solid var(--color-text-muted)', fontSize: '0.85rem' }}>
             <div style={{ fontWeight: 'bold' }}>{issue.pattern}</div>
             <div style={{ color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-              {issue.occurrences} occurrences across {issue.affectedProducts} products.
+              {issue.occurrences} occurrences across {issue.affectedProducts} product{issue.affectedProducts === 1 ? '' : 's'}.
             </div>
           </div>
         ))}

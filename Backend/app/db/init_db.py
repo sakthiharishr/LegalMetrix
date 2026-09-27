@@ -9,6 +9,12 @@ def _add_missing_columns():
     if "case_status" not in columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE scan_sessions ADD COLUMN case_status VARCHAR"))
+    # Findings saved before their product existed were never linked to it; link them from their scan.
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE findings SET product_id = (SELECT product_id FROM scan_sessions WHERE scan_sessions.id = findings.scan_id) "
+            "WHERE product_id IS NULL"
+        ))
 
 
 def init_db():

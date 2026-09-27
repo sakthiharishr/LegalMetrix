@@ -17,9 +17,11 @@ class ReportSummary(BaseModel):
 class ActivityPoint(BaseModel):
     date: str
     count: int
+    label: Optional[str] = None
 
 class ComplianceTrendPoint(BaseModel):
     date: str
+    label: Optional[str] = None
     compliant: int
     potentialFindings: int
     needsReview: int
@@ -46,6 +48,7 @@ class OfficerReviewOutcome(BaseModel):
 
 class ReportAnalyticsResponse(BaseModel):
     reportingPeriod: ReportingPeriod
+    granularity: str = "day"  # day | week | month
     summary: ReportSummary
     inspectionActivity: List[ActivityPoint]
     complianceTrend: List[ComplianceTrendPoint]

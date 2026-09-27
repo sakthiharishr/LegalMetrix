@@ -1,48 +1,35 @@
 import React from 'react';
-import { GlassCard } from '../ui/GlassCard';
-import { AlertTriangle, Repeat, Package } from 'lucide-react';
+import { Repeat, Package } from 'lucide-react';
+import { ReportCard, EmptyPanel } from './ReportCard';
 
 export const RecurringIssuesAnalytics = ({ issues }) => {
-  if (!issues || issues.length === 0) return null;
+  const items = [...(issues || [])].sort((a, b) => b.occurrences - a.occurrences).slice(0, 6);
 
   return (
-    <GlassCard variant="danger" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <AlertTriangle size={18} color="var(--text-danger)" />
-        <h3 style={{ fontSize: '0.9rem', fontWeight: 'bold', margin: 0, color: 'var(--text-danger)' }}>
-          Macro Recurring Intelligence
-        </h3>
-      </div>
-      
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {issues.map(issue => (
-          <div key={issue.id} style={{ 
-            background: 'rgba(239, 68, 68, 0.05)', 
-            borderLeft: '3px solid #f87171',
-            padding: '1rem',
-            borderRadius: '0 var(--radius-sm) var(--radius-sm) 0'
-          }}>
-            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-primary)', fontWeight: '500', marginBottom: '0.75rem' }}>
-              {issue.pattern}
-            </div>
-            
-            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', fontSize: '0.75rem', color: 'var(--color-text-secondary)', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Repeat size={14} color="var(--text-danger)" />
-                <span style={{ color: 'var(--color-text-primary)' }}>{issue.occurrences}</span> occurrences
+    <ReportCard title="Recurring Issues" caption="Findings seen two or more times in this period">
+      {items.length === 0 ? <EmptyPanel>No recurring issues in this period.</EmptyPanel> : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {items.map((issue, index) => (
+            <div key={issue.id} style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '0.75rem 0', borderTop: index ? '1px solid var(--glass-border-standard)' : 'none' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.82rem', color: 'var(--color-text-primary)', fontWeight: 500 }}>{issue.pattern}</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>
+                  Last seen {new Date(issue.lastDetected).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Package size={14} color="var(--color-brand-cyan-light)" />
-                <span style={{ color: 'var(--color-text-primary)' }}>{issue.affectedProducts}</span> products
-              </div>
-              <div>
-                Last detected: {new Date(issue.lastDetected).toLocaleDateString()}
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                <span title="Occurrences" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Repeat size={13} /> <strong style={{ color: 'var(--color-text-primary)' }}>{issue.occurrences}</strong>
+                </span>
+                <span title="Products affected" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Package size={13} /> <strong style={{ color: 'var(--color-text-primary)' }}>{issue.affectedProducts}</strong>
+                </span>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </GlassCard>
+          ))}
+        </div>
+      )}
+    </ReportCard>
   );
 };
 

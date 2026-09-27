@@ -1,4 +1,5 @@
 import React from 'react';
+import { getAuthToken } from '../services/api';
 import { BarChart3, FileSpreadsheet, FileText, PieChart, ShieldAlert } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
@@ -11,7 +12,7 @@ export const ReportsAnalytics = () => {
   const handleExportCsv = async () => {
     setExporting(true);
     try {
-      const token = localStorage.getItem('legalmetrix_access_token');
+      const token = getAuthToken();
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
       const res = await fetch(`${baseUrl}/reports/export/csv`, {
         method: 'POST',
@@ -38,7 +39,7 @@ export const ReportsAnalytics = () => {
   const handleGenerateDigest = async () => {
     setDigestLoading(true);
     try {
-      const token = localStorage.getItem('legalmetrix_access_token');
+      const token = getAuthToken();
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
       const res = await fetch(`${baseUrl}/reports/digest?days=30`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}

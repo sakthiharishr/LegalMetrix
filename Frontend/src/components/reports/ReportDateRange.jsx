@@ -1,36 +1,37 @@
 import React from 'react';
 
-export const ReportDateRange = ({ dateRange, updateDateRange }) => {
-  const ranges = [
-    { value: '7d', label: 'Last 7 Days' },
-    { value: '30d', label: 'Last 30 Days' },
-    { value: '90d', label: 'Last 90 Days' },
-    { value: '1y', label: 'Last 1 Year' }
-  ];
+const RANGES = [
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+  { value: '90d', label: '90 days' },
+  { value: '1y', label: '1 year' },
+];
 
-  return (
-    <div className="no-print" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-      {ranges.map(range => (
+/** Segmented control for the reporting period. */
+export const ReportDateRange = ({ dateRange, updateDateRange }) => (
+  <div role="radiogroup" aria-label="Reporting period" className="no-print"
+    style={{ display: 'inline-flex', padding: 3, gap: 2, borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border-standard)', background: 'rgba(var(--tint-rgb), 0.04)' }}>
+    {RANGES.map((range) => {
+      const active = dateRange === range.value;
+      return (
         <button
           key={range.value}
+          type="button"
+          role="radio"
+          aria-checked={active}
           onClick={() => updateDateRange(range.value)}
           style={{
-            padding: '0.5rem 1rem',
-            background: dateRange === range.value ? 'rgba(6, 182, 212, 0.15)' : 'rgba(0,0,0,0.3)',
-            border: `1px solid ${dateRange === range.value ? 'var(--color-brand-cyan-light)' : 'var(--glass-border-standard)'}`,
-            borderRadius: 'var(--radius-md)',
-            color: dateRange === range.value ? 'var(--color-brand-cyan-light)' : 'var(--color-text-secondary)',
-            fontSize: '0.85rem',
-            fontWeight: dateRange === range.value ? '600' : '400',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
+            padding: '0.45rem 0.95rem', border: 'none', borderRadius: 'calc(var(--radius-md) - 3px)', cursor: 'pointer',
+            fontSize: '0.82rem', fontWeight: active ? 600 : 500, transition: 'background 0.15s, color 0.15s',
+            background: active ? 'var(--color-brand-cyan)' : 'transparent',
+            color: active ? '#fff' : 'var(--color-text-secondary)',
           }}
         >
           {range.label}
         </button>
-      ))}
-    </div>
-  );
-};
+      );
+    })}
+  </div>
+);
 
 export default ReportDateRange;

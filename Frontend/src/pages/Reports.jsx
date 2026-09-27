@@ -2,14 +2,13 @@ import React from 'react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
 import { GlassButton } from '../components/ui/GlassButton';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, CalendarDays } from 'lucide-react';
 
 // Hooks
 import { useReports } from '../hooks/useReports';
 
 // Components
 import { ReportDateRange } from '../components/reports/ReportDateRange';
-import { ReportFilters } from '../components/reports/ReportFilters';
 import { ReportSummaryCards } from '../components/reports/ReportSummaryCards';
 import { InspectionActivityChart } from '../components/reports/InspectionActivityChart';
 import { ComplianceTrendAnalytics } from '../components/reports/ComplianceTrendAnalytics';
@@ -18,8 +17,12 @@ import { RiskDistributionAnalytics } from '../components/reports/RiskDistributio
 import { RecurringIssuesAnalytics } from '../components/reports/RecurringIssuesAnalytics';
 import { OfficerReviewAnalytics } from '../components/reports/OfficerReviewAnalytics';
 import { ReportPreview } from '../components/reports/ReportPreview';
-import { ReportExportActions } from '../components/reports/ReportExportActions';
+import { ReportExportActions, ExportMessage } from '../components/reports/ReportExportActions';
 import { ReportsSkeleton } from '../components/reports/ReportsSkeleton';
+
+// Two panels side by side on wide screens, stacked on narrow ones (never wider than the screen).
+const twoColumns = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 440px), 1fr))', gap: '1.5rem', alignItems: 'stretch' };
+const formatDay = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 export const Reports = () => {
   const { 
@@ -69,38 +72,38 @@ export const Reports = () => {
         }
       `}</style>
 
-      <div className="no-print">
-        <PageHeader 
-          title="Reports & Analytics" 
-          subtitle="Analyze inspection activity, compliance findings, risk patterns and officer review outcomes." 
+      <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem' }}>
+        <PageHeader
+          title="Reports & Analytics"
+          subtitle="Inspection activity, compliance outcomes, risk and officer decisions for the selected period."
         />
-        
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+        {/* Toolbar: period on the left, exports on the right */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginTop: '-0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <ReportDateRange dateRange={dateRange} updateDateRange={updateDateRange} />
-            <ReportFilters />
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+              <CalendarDays size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
+              {formatDay(analytics.reportingPeriod.start)} - {formatDay(analytics.reportingPeriod.end)}
+            </span>
           </div>
-          <ReportExportActions 
-            exportState={exportState} 
-            exportMessage={exportMessage} 
-            handleExportPdf={handleExportPdf} 
-            handleExportCsv={handleExportCsv} 
-          />
+          <ReportExportActions exportState={exportState} handleExportPdf={handleExportPdf} handleExportCsv={handleExportCsv} />
         </div>
+        <ExportMessage message={exportMessage} />
 
         <ReportSummaryCards summary={analytics.summary} />
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          <InspectionActivityChart activity={analytics.inspectionActivity} />
+        <div style={twoColumns}>
+          <InspectionActivityChart activity={analytics.inspectionActivity} granularity={analytics.granularity} />
           <ComplianceTrendAnalytics trend={analytics.complianceTrend} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        <div style={twoColumns}>
           <FindingCategoryAnalytics categories={analytics.findingCategories} />
           <RiskDistributionAnalytics distribution={analytics.riskDistribution} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
+        <div style={twoColumns}>
           <RecurringIssuesAnalytics issues={analytics.recurringIssues} />
           <OfficerReviewAnalytics outcomes={analytics.officerReviewOutcomes} />
         </div>

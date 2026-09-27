@@ -1,50 +1,28 @@
 import React from 'react';
-import { GlassCard } from '../ui/GlassCard';
-import { RISK_LEVEL } from '../../utils/constants';
+import { ReportCard, EmptyPanel } from './ReportCard';
+import { ProgressRow } from './FindingCategoryAnalytics';
+
+const LEVELS = [
+  { level: 'HIGH_RISK', label: 'High risk', color: 'var(--color-risk-high)' },
+  { level: 'MEDIUM_RISK', label: 'Medium risk', color: 'var(--color-risk-medium)' },
+  { level: 'LOW_RISK', label: 'Low risk', color: 'var(--color-risk-low)' },
+];
 
 export const RiskDistributionAnalytics = ({ distribution }) => {
-  if (!distribution || distribution.length === 0) return null;
-
-  const total = distribution.reduce((sum, item) => sum + item.count, 0) || 1;
-
-  const getColor = (level) => {
-    switch(level) {
-      case RISK_LEVEL.LOW_RISK: return 'var(--color-status-compliant)';
-      case RISK_LEVEL.MEDIUM_RISK: return 'var(--color-status-warning)';
-      case RISK_LEVEL.HIGH_RISK: return 'var(--color-status-danger)';
-      case RISK_LEVEL.CRITICAL_RISK: return '#991b1b'; // darker red
-      default: return 'var(--color-text-muted)';
-    }
-  };
+  const counts = Object.fromEntries((distribution || []).map((d) => [d.level, d.count]));
+  const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
 
   return (
-    <GlassCard variant="default">
-      <h3 style={{ fontSize: '0.85rem', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 1.5rem 0', color: 'var(--color-text-primary)' }}>
-        Risk Distribution
-      </h3>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {distribution.map(item => {
-          const percentage = ((item.count / total) * 100).toFixed(1);
-          return (
-            <div key={item.level}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.5rem', color: 'var(--color-text-primary)' }}>
-                <span>{item.level.replace(/_/g, ' ')}</span>
-                <span style={{ color: 'var(--color-text-secondary)' }}>{item.count} ({percentage}%)</span>
-              </div>
-              <div style={{ width: '100%', height: '8px', background: 'rgba(var(--tint-rgb), 0.05)', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{ 
-                  height: '100%', 
-                  width: `${percentage}%`, 
-                  background: getColor(item.level),
-                  borderRadius: '4px'
-                }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </GlassCard>
+    <ReportCard title="Risk Distribution" caption={`${total} inspection${total === 1 ? '' : 's'} by assessed risk`}>
+      {total === 0 ? <EmptyPanel>No inspections in this period.</EmptyPanel> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+          {LEVELS.map(({ level, label, color }) => {
+            const value = counts[level] || 0;
+            return <ProgressRow key={level} label={label} value={value} percent={Math.round((value / total) * 100)} color={color} />;
+          })}
+        </div>
+      )}
+    </ReportCard>
   );
 };
 

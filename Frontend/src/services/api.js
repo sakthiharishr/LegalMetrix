@@ -136,8 +136,9 @@ async function request(endpoint, options = {}, isRetry = false) {
     headers.set('Content-Type', 'application/json');
   }
 
+  const { responseType, ...fetchOptions } = options;
   const config = {
-    ...options,
+    ...fetchOptions,
     headers,
     // Enable cookie handling for future FastAPI HttpOnly refresh tokens / session cookies
     credentials: options.credentials || 'include',
@@ -215,6 +216,11 @@ async function request(endpoint, options = {}, isRetry = false) {
       }
     }
 
+    // File downloads (PDF/CSV) come back as a Blob; errors are still JSON.
+    if (responseType === 'blob' && response.ok) {
+      return await response.blob();
+    }
+
     const data = await parseResponseData(response);
 
     if (!response.ok) {
@@ -286,6 +292,26 @@ export const api = {
       method: 'POST',
       body: formData,
     });
+  },
+
+  /**
+   * Download a file (PDF/CSV) with the signed-in session and save it.
+   * Uses the same token and session refresh as every other request.
+   */
+  download: async (endpoint, filename, { method = 'GET', body } = {}) => {
+    const blob = await request(endpoint, {
+      method,
+      responseType: 'blob',
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
 };
 

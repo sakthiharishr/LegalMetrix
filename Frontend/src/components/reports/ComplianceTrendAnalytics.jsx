@@ -1,52 +1,36 @@
 import React from 'react';
-import { GlassCard } from '../ui/GlassCard';
+import { ReportCard, EmptyPanel } from './ReportCard';
+import { BarChart, Legend, formatPointLabel } from './BarChart';
+
+const SERIES = [
+  { key: 'compliant', name: 'Compliant', color: 'var(--color-status-compliant)' },
+  { key: 'needsReview', name: 'Needs review', color: 'var(--color-status-review)' },
+  { key: 'potentialFindings', name: 'Violations', color: 'var(--color-status-violation)' },
+];
 
 export const ComplianceTrendAnalytics = ({ trend }) => {
-  if (!trend || trend.length === 0) return null;
+  const points = trend || [];
+  const sums = Object.fromEntries(SERIES.map((s) => [s.key, points.reduce((sum, p) => sum + (p[s.key] || 0), 0)]));
+  const total = SERIES.reduce((sum, s) => sum + sums[s.key], 0);
+  const rate = total ? Math.round((sums.compliant / total) * 100) : 0;
 
   return (
-    <GlassCard variant="default">
-      <h3 style={{ fontSize: '0.85rem', fontWeight: 'var(--font-weight-semibold)', margin: '0 0 1.5rem 0', color: 'var(--color-text-primary)' }}>
-        Compliance Outcome Trend
-      </h3>
-      
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '160px', width: '100%', paddingBottom: '20px', borderBottom: '1px solid var(--glass-border-standard)' }}>
-        {trend.map((point, index) => {
-          const total = point.compliant + point.potentialFindings + point.needsReview;
-          const compPct = (point.compliant / total) * 100;
-          const fndPct = (point.potentialFindings / total) * 100;
-          const revPct = (point.needsReview / total) * 100;
-
-          return (
-            <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', justifyContent: 'flex-end', gap: '1px' }}>
-                <div title={`Needs Review: ${point.needsReview}`} style={{ width: '100%', height: `${revPct}%`, background: 'var(--color-status-warning)' }} />
-                <div title={`Potential Findings: ${point.potentialFindings}`} style={{ width: '100%', height: `${fndPct}%`, background: 'var(--color-status-danger)' }} />
-                <div title={`Compliant: ${point.compliant}`} style={{ width: '100%', height: `${compPct}%`, background: 'var(--color-status-compliant)' }} />
-              </div>
-              <div style={{ position: 'absolute', bottom: '-25px', width: '100%', textAlign: 'center', fontSize: '0.65rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                {new Date(point.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'center', fontSize: '0.7rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          <div style={{ width: '10px', height: '10px', background: 'var(--color-status-compliant)' }} />
-          <span style={{ color: 'var(--color-text-secondary)' }}>Compliant</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          <div style={{ width: '10px', height: '10px', background: 'var(--color-status-danger)' }} />
-          <span style={{ color: 'var(--color-text-secondary)' }}>Findings</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          <div style={{ width: '10px', height: '10px', background: 'var(--color-status-warning)' }} />
-          <span style={{ color: 'var(--color-text-secondary)' }}>Review</span>
-        </div>
-      </div>
-    </GlassCard>
+    <ReportCard
+      title="Compliance Outcomes"
+      caption="Result of each completed inspection"
+      aside={total ? <><div style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--color-status-compliant)', lineHeight: 1 }}>{rate}%</div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '0.2rem' }}>compliant</div></> : null}
+    >
+      {total === 0 ? <EmptyPanel>No completed inspections in this period.</EmptyPanel> : (
+        <>
+          <BarChart points={points.map((p) => ({
+            label: formatPointLabel(p),
+            segments: SERIES.map((s) => ({ ...s, value: p[s.key] || 0 })),
+          }))} />
+          <Legend items={SERIES.map((s) => ({ ...s, name: `${s.name} (${sums[s.key]})` }))} />
+        </>
+      )}
+    </ReportCard>
   );
 };
 

@@ -128,6 +128,7 @@ def analyze_scan(db: Session, scan: ScanSession) -> Dict[str, Any]:
         "Manufacturer / Packer / Importer": "Manufacturer / Packer / Importer", "Commodity Name": "Commodity Name",
         "Consumer Care": "Consumer Care", "Country of Origin": "Country of Origin",
     }
+    finding_records = []
     for finding in evaluation["findings"]:
         relevant = _field_items(field_map.get(finding["field"], finding["field"]), all_ocr_items, fields)
         finding_record = Finding(
@@ -140,6 +141,7 @@ def analyze_scan(db: Session, scan: ScanSession) -> Dict[str, Any]:
             bounding_boxes_json=json.dumps(relevant, ensure_ascii=False), raw_ocr=raw_text,
         )
         db.add(finding_record)
+        finding_records.append(finding_record)
         create_evidence_for_finding(db, finding_record, images, relevant)
 
     product_name = fields.get("product_name") or "Unidentified Commodity"
@@ -173,6 +175,9 @@ def analyze_scan(db: Session, scan: ScanSession) -> Dict[str, Any]:
         product.current_status = scan.compliance_status
         product.risk_level = scan.risk_level
         product.last_inspection = datetime.now(timezone.utc)
+        # The product record may only exist now; link this scan's findings to it for history and reports.
+        for record in finding_records:
+            record.product_id = scan.product_id
 
     db.commit()
     return evaluation

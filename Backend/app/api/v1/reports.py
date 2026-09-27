@@ -1,4 +1,5 @@
 import csv
+import re
 import io
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -28,6 +29,37 @@ def _period(days: int):
     return end - timedelta(days=days), end
 
 
+def _range_days(value) -> int:
+    """'7d' / '30d' / '90d' / '1y' / '12m' -> days (1..365); anything unreadable -> 30."""
+    text = str(value or "").strip().lower()
+    match = re.fullmatch(r"(\d+)\s*([dwmy]?)", text)
+    if not match:
+        return 30
+    number, unit = int(match.group(1)), match.group(2) or "d"
+    return max(1, min(365, number * {"d": 1, "w": 7, "m": 30, "y": 365}[unit]))
+
+
+def _buckets(first_day, last_day, days: int):
+    """(granularity, [(first, last, label)]) covering first_day..last_day."""
+    if days <= 31:
+        return "day", [(d, d, d.strftime("%d %b")) for d in (last_day - timedelta(days=days - 1 - i) for i in range(days))]
+    if days <= 120:
+        out, cursor = [], last_day
+        while cursor >= first_day:
+            begin = max(first_day, cursor - timedelta(days=6))
+            out.append((begin, cursor, begin.strftime("%d %b")))
+            cursor = begin - timedelta(days=1)
+        return "week", out[::-1]
+    out, year, month = [], last_day.year, last_day.month
+    while (year, month) >= (first_day.year, first_day.month):
+        begin = max(first_day, first_day.replace(year=year, month=month, day=1))
+        nxt = (year + (month == 12), month % 12 + 1)
+        end_of_month = first_day.replace(year=nxt[0], month=nxt[1], day=1) - timedelta(days=1)
+        out.append((begin, min(end_of_month, last_day), begin.strftime("%b %Y")))
+        year, month = (year - 1, 12) if month == 1 else (year, month - 1)
+    return "month", out[::-1]
+
+
 def _get_report_data(days: int, db: Session):
     start, end = _period(days)
     scans = db.query(ScanSession).filter(ScanSession.created_at >= start).all()
@@ -45,17 +77,18 @@ def _get_report_data(days: int, db: Session):
         needsFurtherReview=sum(str(f.status) == "NEEDS_REVIEW" for f in findings),
     )
 
+    # One bar per day for a week or month, per week for a quarter, per month for a year,
+    # so every chart covers the whole selected period with a readable number of bars.
     activity = []
     trend = []
-    window = min(days, 30)
-    for i in range(window):
-        day = end.date() - timedelta(days=window - 1 - i)
-        items = [s for s in scans if s.created_at.date() == day]
-        activity.append(ActivityPoint(date=day.isoformat(), count=len(items)))
+    granularity, buckets = _buckets(start.date(), end.date(), days)
+    for first, last, label in buckets:
+        items = [s for s in scans if s.created_at and first <= s.created_at.date() <= last]
+        activity.append(ActivityPoint(date=first.isoformat(), label=label, count=len(items)))
         trend.append(ComplianceTrendPoint(
-            date=day.isoformat(),
+            date=first.isoformat(), label=label,
             compliant=sum(str(s.compliance_status) == "COMPLIANT" for s in items),
-            potentialFindings=sum(str(s.compliance_status) == "POTENTIAL_VIOLATION" for s in items),
+            potentialFindings=sum(str(s.compliance_status) in ("POTENTIAL_VIOLATION", "VIOLATION_CONFIRMED") for s in items),
             needsReview=sum(str(s.compliance_status) == "NEEDS_REVIEW" for s in items),
         ))
 
@@ -78,13 +111,14 @@ def _get_report_data(days: int, db: Session):
                 id=f"REC-{rule}-{field}",
                 pattern=str(vals[0].description),
                 occurrences=len(vals),
-                affectedProducts=len({v.product_id for v in vals if v.product_id}),
+                affectedProducts=len({v.product_id or v.scan_id for v in vals}),
                 lastDetected=max(v.created_at for v in vals).isoformat(),
             ))
 
     outcomes = Counter(r.decision or "PENDING_REVIEW" for r in reviews)
     analytics = ReportAnalyticsResponse(
         reportingPeriod=ReportingPeriod(start=start.isoformat(), end=end.isoformat()),
+        granularity=granularity,
         summary=summary,
         inspectionActivity=activity,
         complianceTrend=trend,
@@ -104,11 +138,7 @@ def get_report_analytics(
     current_user: User = Depends(get_current_user),
 ):
     if range:
-        try:
-            days = int(range.lower().replace("d", ""))
-        except ValueError:
-            days = 30
-        days = max(1, min(days, 365))
+        days = _range_days(range)
     return _get_report_data(days, db)[-1]
 
 
@@ -159,12 +189,7 @@ def export_csv(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    days = 30
-    if payload and payload.get("range"):
-        try:
-            days = int(str(payload["range"]).lower().replace("d", ""))
-        except (ValueError, TypeError):
-            days = 30
+    days = _range_days((payload or {}).get("range"))
     _, _, scans, findings, reviews, _ = _get_report_data(max(1, min(days, 365)), db)
     return _csv_response(scans, findings, reviews)
 
@@ -175,12 +200,7 @@ def export_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    days = 30
-    if payload and payload.get("range"):
-        try:
-            days = int(str(payload["range"]).lower().replace("d", ""))
-        except (ValueError, TypeError):
-            days = 30
+    days = _range_days((payload or {}).get("range"))
     start, end, scans, findings, reviews, analytics = _get_report_data(max(1, min(days, 365)), db)
 
     from reportlab.lib.pagesizes import A4
