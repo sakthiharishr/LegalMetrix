@@ -34,6 +34,8 @@ def get_pending_verifications(db: Session = Depends(get_db), current_user: User 
         .filter(
             Finding.status.in_(["POTENTIAL_VIOLATION", "NEEDS_REVIEW"]),
             (ScanSession.officer_id == current_user.id) | (ScanSession.officer_id.is_(None)),
+            # Flow step 10 -> 11: only cases forwarded to the officer (older scans have no case status).
+            (ScanSession.case_status.in_(["FORWARDED", "UNDER_REVIEW"])) | (ScanSession.case_status.is_(None)),
         )
         .order_by(Finding.created_at.desc())
         .all()
@@ -164,7 +166,8 @@ def get_scan_verification_workspace(scan_id: str, db: Session = Depends(get_db),
         scan = (
             db.query(ScanSession)
             .join(Finding, Finding.scan_id == ScanSession.id)
-            .filter(Finding.status.in_(["POTENTIAL_VIOLATION", "NEEDS_REVIEW"]))
+            .filter(Finding.status.in_(["POTENTIAL_VIOLATION", "NEEDS_REVIEW"]),
+                    ScanSession.case_status.in_(["FORWARDED", "UNDER_REVIEW"]) | ScanSession.case_status.is_(None))
             .order_by(ScanSession.created_at.desc(), Finding.created_at.asc())
             .first()
         )
@@ -176,7 +179,7 @@ def get_scan_verification_workspace(scan_id: str, db: Session = Depends(get_db),
                 "message": "No findings are currently awaiting officer verification.",
                 "totalFindings": 0,
             }
-        scan_id = scan.id
+        scan_id = str(scan.id)
     else:
         scan = db.query(ScanSession).filter(ScanSession.id == scan_id).first()
         if not scan:
@@ -229,11 +232,11 @@ def submit_verification(scan_id: str, finding_id: str, payload: SubmitVerificati
         vr = VerificationRecord(id=f"VR-{uuid.uuid4().hex[:8].upper()}", scan_id=scan_id, finding_id=finding_id)
         db.add(vr)
 
-    vr.status = "COMPLETED"
-    vr.decision = payload.decision
-    vr.remarks = payload.remarks
-    vr.reviewed_at = now
-    vr.reviewed_by = current_user.name
+    vr.status = "COMPLETED"  # type: ignore
+    vr.decision = payload.decision  # type: ignore
+    vr.remarks = payload.remarks  # type: ignore
+    vr.reviewed_at = now  # type: ignore
+    vr.reviewed_by = current_user.name  # type: ignore
 
     # Store optional officer corrections as supervised learning examples.
     # This is offline feedback collection, not uncontrolled live fine-tuning.
@@ -256,11 +259,22 @@ def submit_verification(scan_id: str, finding_id: str, payload: SubmitVerificati
     target_findings = pending_findings or [finding]
     for target in target_findings:
         if payload.decision == "CONFIRM_FINDING":
-            target.status = "CONFIRMED"
+            target.status = "CONFIRMED"  # type: ignore
         elif payload.decision == "INVALIDATE_FINDING":
-            target.status = "INVALIDATED"
+            target.status = "INVALIDATED"  # type: ignore
         else:
-            target.status = "NEEDS_REVIEW"
+            target.status = "NEEDS_REVIEW"  # type: ignore
         db.add(AuditLog(id=f"LOG-{uuid.uuid4().hex[:8].upper()}", scan_id=scan_id, finding_id=target.id, actor="OFFICER", action=f"Product Review Submitted: {payload.decision}", status="COMPLETED", timestamp=now))
+
+    # Flow steps 12A/12B -> 13: the officer's decision becomes the case outcome and the product's status.
+    scan = db.query(ScanSession).filter(ScanSession.id == scan_id).first()
+    if scan:
+        outcome = {"CONFIRM_FINDING": ("CONFIRMED", "VIOLATION_CONFIRMED"),
+                   "INVALIDATE_FINDING": ("INVALIDATED", "COMPLIANT")}.get(payload.decision, ("UNDER_REVIEW", "NEEDS_REVIEW"))
+        scan.case_status, scan.compliance_status = outcome
+        product = db.query(Product).filter(Product.id == scan.product_id).first() if scan.product_id else None
+        if product:
+            product.current_status = outcome[1]
+            product.risk_level = "LOW_RISK" if outcome[0] == "INVALIDATED" else scan.risk_level
     db.commit()
     return _workspace(scan_id, finding_id, db, current_user)

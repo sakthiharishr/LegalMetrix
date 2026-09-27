@@ -18,7 +18,7 @@ export const ReviewStatusBanner = ({ status }) => {
         gap: '0.75rem',
         color: 'var(--color-status-compliant)'
       }}>
-        <CheckCircle size={18} flexShrink={0} />
+        <CheckCircle size={18} style={{ flexShrink: 0 }} />
         <span style={{ fontSize: '0.85rem', lineHeight: 1.4 }}>
           <strong>Review Completed:</strong> This finding has already been reviewed by an authorized enforcement officer. The decision is final and cannot be modified.
         </span>
@@ -38,7 +38,7 @@ export const ReviewStatusBanner = ({ status }) => {
       gap: '0.75rem',
       color: 'var(--color-status-review)'
     }}>
-      <AlertTriangle size={18} flexShrink={0} />
+      <AlertTriangle size={18} style={{ flexShrink: 0 }} />
       <span style={{ fontSize: '0.85rem', lineHeight: 1.4 }}>
         <strong>Pending Officer Review:</strong> This finding was identified by the compliance analysis system and requires review by an authorized enforcement officer. AI output is advisory and does not constitute a final legal violation.
       </span>

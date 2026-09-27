@@ -13,10 +13,31 @@ import { GlassModal } from '../components/ui/GlassModal';
 import { GlassButton } from '../components/ui/GlassButton';
 import { GlassCard } from '../components/ui/GlassCard';
 import { EmptyState } from '../components/common/EmptyState';
-import { ArrowLeft, Image as ImageIcon, ShieldAlert, RefreshCw, CheckCircle2, Clock3 } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, ShieldAlert, RefreshCw, CheckCircle2, Clock3, FileDown } from 'lucide-react';
 import { REVIEW_STATUS, OFFICER_DECISION } from '../utils/constants';
 import { EvidenceSkeleton } from '../components/evidence/EvidenceSkeleton'; // Reuse skeleton
 import verificationService from '../services/verificationService';
+import analysisService from '../services/analysisService';
+
+// Flow step 9 -> 11: the officer reviews the case with its violation report.
+const ReportButton = ({ scanId }) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const download = async () => {
+    setBusy(true); setError('');
+    try { await analysisService.downloadCaseReport(scanId); }
+    catch (err) { setError(err.message || 'Report download failed.'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      {error && <span role="alert" style={{ color: 'var(--text-danger)', fontSize: '0.8rem' }}>{error}</span>}
+      <GlassButton variant="secondary" icon={<FileDown size={16} />} onClick={download} disabled={busy}>
+        {busy ? 'Preparing report...' : 'Violation Report (PDF)'}
+      </GlassButton>
+    </div>
+  );
+};
 
 export const OfficerVerification = () => {
   const location = useLocation();
@@ -48,6 +69,14 @@ export const OfficerVerification = () => {
   React.useEffect(() => {
     loadPending();
   }, []);
+
+  // A forwarded case arrives with only its scan ID: open it at its first pending finding.
+  React.useEffect(() => {
+    if (!selectedScanId || selectedFindingId) return;
+    const item = pendingItems.find((p) => p.scanId === selectedScanId);
+    const findingId = item?.findingId || item?.violations?.[0]?.findingId;
+    if (findingId) setSelectedFindingId(findingId);
+  }, [pendingItems, selectedScanId, selectedFindingId]);
 
   const activeScanId = selectedScanId || '';
   const activeFindingId = selectedFindingId || '';
@@ -215,6 +244,7 @@ export const OfficerVerification = () => {
       <PageHeader 
         title="Officer Verification" 
         subtitle={`Scan: ${data.scanId} | Product: ${data.product?.name || 'Unknown'}`} 
+        actions={<ReportButton scanId={data.scanId} />}
       />
 
       <ReviewStatusBanner status={data.status} />
@@ -224,7 +254,7 @@ export const OfficerVerification = () => {
           background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 'var(--radius-md)', 
           padding: '1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-status-compliant)' 
         }}>
-          <CheckCircle2 size={20} flexShrink={0} />
+          <CheckCircle2 size={20} style={{ flexShrink: 0 }} />
           <span>Officer review submitted successfully.</span>
         </div>
       )}
@@ -234,7 +264,7 @@ export const OfficerVerification = () => {
           background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-md)', 
           padding: '1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--text-danger)' 
         }}>
-          <ShieldAlert size={20} flexShrink={0} />
+          <ShieldAlert size={20} style={{ flexShrink: 0 }} />
           <span>{submitError}</span>
         </div>
       )}

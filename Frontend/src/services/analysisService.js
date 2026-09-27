@@ -51,7 +51,33 @@ export const analysisService = {
         risk: mockRiskAssessment
       };
     }
-  }
+  },
+
+  /** Flow step 10: forward the case to the legal officer. Returns { scanId, caseStatus, message }. */
+  async forwardCase(scanId) {
+    return api.post(API_ENDPOINTS.SCAN_FORWARD.replace('{scanId}', scanId));
+  },
+
+  /** Flow step 9: download the single-case violation report (PDF) and save it. */
+  async downloadCaseReport(scanId) {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    const token = localStorage.getItem('legalmetrix_access_token');
+    const res = await fetch(`${baseUrl}${API_ENDPOINTS.REPORT_CASE_PDF.replace('{scanId}', scanId)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `Report download failed (${res.status})`);
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `LegalMetrix_${scanId}_report.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
 };
 
 export default analysisService;

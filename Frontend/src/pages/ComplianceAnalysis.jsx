@@ -12,7 +12,7 @@ import { RiskAssessmentCard } from '../components/analysis/RiskAssessmentCard';
 import { GlassButton } from '../components/ui/GlassButton';
 import { GlassCard } from '../components/ui/GlassCard';
 import { EmptyState } from '../components/common/EmptyState';
-import { ArrowLeft, History, ShieldCheck, RefreshCw, Search, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, History, ShieldCheck, RefreshCw, Search, AlertTriangle, FileDown } from 'lucide-react';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { RiskBadge } from '../components/common/RiskBadge';
 
@@ -72,6 +72,59 @@ export const ComplianceAnalysis = () => {
   return <AnalysisDetail scanId={selectedScanId} navigate={navigate} />;
 };
 
+const CASE_LABELS = {
+  NO_CASE: 'Compliant - no case',
+  READY_TO_FORWARD: 'Ready to forward',
+  FORWARDED: 'Forwarded to legal officer',
+  UNDER_REVIEW: 'Further review requested',
+  CONFIRMED: 'Violation confirmed',
+  INVALIDATED: 'Finding invalidated',
+};
+
+const CaseActions = ({ data, navigate }) => {
+  const [caseStatus, setCaseStatus] = useState(data.caseStatus);
+  const [busy, setBusy] = useState('');
+  const [message, setMessage] = useState('');
+  useEffect(() => { setCaseStatus(data.caseStatus); setMessage(''); }, [data.scanId, data.caseStatus]);
+
+  const hasCase = (data.findings?.length || 0) > 0 && caseStatus !== 'NO_CASE';
+  const decided = caseStatus === 'CONFIRMED' || caseStatus === 'INVALIDATED';
+
+  const downloadReport = async () => {
+    setBusy('report'); setMessage('');
+    try { await analysisService.downloadCaseReport(data.scanId); }
+    catch (err) { setMessage(err.message || 'Report download failed.'); }
+    finally { setBusy(''); }
+  };
+
+  const forward = async () => {
+    setBusy('forward'); setMessage('');
+    try {
+      const result = await analysisService.forwardCase(data.scanId);
+      setCaseStatus(result.caseStatus);
+      navigate('/verification', { state: { scanId: data.scanId } });
+    } catch (err) {
+      setMessage(err.message || 'Could not forward the case.');
+    } finally { setBusy(''); }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      {message && <span role="alert" style={{ color: 'var(--text-danger)', fontSize: '0.8rem' }}>{message}</span>}
+      {caseStatus && <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Case: <strong>{CASE_LABELS[caseStatus] || caseStatus}</strong></span>}
+      <GlassButton variant="ghost" icon={<FileDown size={16} />} onClick={downloadReport} disabled={busy === 'report'}>
+        {busy === 'report' ? 'Preparing report...' : hasCase ? 'Download Violation Report' : 'Download Inspection Report'}
+      </GlassButton>
+      <GlassButton variant="ghost" icon={<History size={16} />} onClick={() => navigate('/history')}>Product History</GlassButton>
+      {hasCase && !decided && (
+        <GlassButton variant="primary" icon={<ShieldCheck size={16} />} onClick={forward} disabled={busy === 'forward'}>
+          {busy === 'forward' ? 'Forwarding...' : caseStatus === 'FORWARDED' || caseStatus === 'UNDER_REVIEW' ? 'Open Officer Verification' : 'Forward Case to Legal Officer'}
+        </GlassButton>
+      )}
+    </div>
+  );
+};
+
 const AnalysisDetail = ({ scanId, navigate }) => {
   const { loading, error, data, retry } = useComplianceAnalysis(scanId);
   if (loading) return <div><PageHeader title="Compliance Analysis" subtitle="Retrieving backend analysis..." /><div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0' }}><LoadingSpinner size="lg" text="Loading Compliance Results" /></div></div>;
@@ -85,9 +138,9 @@ const AnalysisDetail = ({ scanId, navigate }) => {
       {data.findings?.length > 0 && <PotentialFindings findings={data.findings} onNavigateToEvidence={(evidenceId) => navigate('/evidence', { state: { evidenceId, scanId: data.scanId } })} />}
       <ComplianceChecklist checks={data.complianceChecks} onNavigateToEvidence={() => navigate('/evidence', { state: { scanId: data.scanId } })} />
     </div>
-    <div style={{ position: 'fixed', bottom: 0, left: 'var(--sidebar-width)', right: 0, padding: '1rem 2rem', background: 'rgba(var(--surface-rgb), 0.95)', backdropFilter: 'blur(12px)', borderTop: '1px solid var(--glass-border-standard)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
+    <div style={{ position: 'fixed', bottom: 0, left: 'var(--sidebar-width)', right: 0, padding: '1rem 2rem', background: 'rgba(var(--surface-rgb), 0.95)', backdropFilter: 'blur(12px)', borderTop: '1px solid var(--glass-border-standard)', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
       <GlassButton variant="secondary" icon={<ArrowLeft size={16} />} onClick={() => navigate('/analysis')}>All Products</GlassButton>
-      <div style={{ display: 'flex', gap: '1rem' }}><GlassButton variant="ghost" icon={<History size={16} />} onClick={() => navigate('/history')}>Product History</GlassButton><GlassButton variant="primary" icon={<ShieldCheck size={16} />} onClick={() => navigate('/verification', { state: { scanId: data.scanId } })}>Send for Officer Verification</GlassButton></div>
+      <CaseActions data={data} navigate={navigate} />
     </div>
   </div>;
 };

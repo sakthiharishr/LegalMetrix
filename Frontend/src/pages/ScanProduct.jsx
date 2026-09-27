@@ -102,6 +102,16 @@ export const ScanProduct = () => {
           </>
         )}
 
+        {/* Flow step 2: an unclear photo must be retaken before analysis can start */}
+        {session.unclearImages.length > 0 && !session.isAnalyzing && (
+          <div role="alert" style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: 'var(--radius-md)', color: 'var(--text-danger-soft)', fontSize: '0.85rem' }}>
+            <strong>Image not clear, please upload again.</strong>
+            <ul style={{ margin: '0.4rem 0 0', paddingLeft: '1.25rem' }}>
+              {session.unclearImages.map((img) => <li key={img.viewName}>{img.viewName}: {img.qualityMessage}</li>)}
+            </ul>
+          </div>
+        )}
+
         {/* Errors display if analysis failed */}
         {session.errors.length > 0 && (
            <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: 'var(--radius-md)', color: 'var(--text-danger-soft)', fontSize: '0.85rem' }}>

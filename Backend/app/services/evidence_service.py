@@ -70,6 +70,6 @@ def create_evidence_for_finding(
         bounding_boxes_json=json.dumps(relevant_boxes, ensure_ascii=False),
         supporting_text=supporting_text,
     )
-    finding.evidence_id = evidence_id
+    finding.evidence_id = evidence_id  # type: ignore
     db.add(record)
     return record

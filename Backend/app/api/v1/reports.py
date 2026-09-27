@@ -40,9 +40,9 @@ def _get_report_data(days: int, db: Session):
         productsInspected=len(products),
         potentialFindings=sum(f.status in ("POTENTIAL_VIOLATION", "NEEDS_REVIEW") for f in findings),
         officerReviews=len(reviews),
-        confirmedFindings=sum(f.status == "CONFIRMED" for f in findings),
-        invalidatedFindings=sum(f.status == "INVALIDATED" for f in findings),
-        needsFurtherReview=sum(f.status == "NEEDS_REVIEW" for f in findings),
+        confirmedFindings=sum(str(f.status) == "CONFIRMED" for f in findings),
+        invalidatedFindings=sum(str(f.status) == "INVALIDATED" for f in findings),
+        needsFurtherReview=sum(str(f.status) == "NEEDS_REVIEW" for f in findings),
     )
 
     activity = []
@@ -54,19 +54,19 @@ def _get_report_data(days: int, db: Session):
         activity.append(ActivityPoint(date=day.isoformat(), count=len(items)))
         trend.append(ComplianceTrendPoint(
             date=day.isoformat(),
-            compliant=sum(s.compliance_status == "COMPLIANT" for s in items),
-            potentialFindings=sum(s.compliance_status == "POTENTIAL_VIOLATION" for s in items),
-            needsReview=sum(s.compliance_status == "NEEDS_REVIEW" for s in items),
+            compliant=sum(str(s.compliance_status) == "COMPLIANT" for s in items),
+            potentialFindings=sum(str(s.compliance_status) == "POTENTIAL_VIOLATION" for s in items),
+            needsReview=sum(str(s.compliance_status) == "NEEDS_REVIEW" for s in items),
         ))
 
     cat = Counter(f.category for f in findings)
     total = max(1, len(findings))
     categories = [
-        FindingCategoryStat(category=k, count=v, percentage=round(v / total * 100))
+        FindingCategoryStat(category=str(k), count=v, percentage=round(v / total * 100))
         for k, v in cat.most_common()
     ]
     risk = Counter(s.risk_level or "LOW_RISK" for s in scans)
-    risk_dist = [RiskDistributionStat(level=k, count=v) for k, v in risk.items()]
+    risk_dist = [RiskDistributionStat(level=str(k), count=v) for k, v in risk.items()]
 
     groups = {}
     for f in findings:
@@ -76,7 +76,7 @@ def _get_report_data(days: int, db: Session):
         if len(vals) >= 2:
             recurring.append(ReportRecurringIssue(
                 id=f"REC-{rule}-{field}",
-                pattern=vals[0].description,
+                pattern=str(vals[0].description),
                 occurrences=len(vals),
                 affectedProducts=len({v.product_id for v in vals if v.product_id}),
                 lastDetected=max(v.created_at for v in vals).isoformat(),
@@ -91,7 +91,7 @@ def _get_report_data(days: int, db: Session):
         findingCategories=categories,
         riskDistribution=risk_dist,
         recurringIssues=recurring,
-        officerReviewOutcomes=[OfficerReviewOutcome(outcome=k, count=v) for k, v in outcomes.items()],
+        officerReviewOutcomes=[OfficerReviewOutcome(outcome=str(k), count=v) for k, v in outcomes.items()],
     )
     return start, end, scans, findings, reviews, analytics
 
@@ -105,7 +105,7 @@ def get_report_analytics(
 ):
     if range:
         try:
-            days = int(str(range).lower().replace("d", ""))
+            days = int(range.lower().replace("d", ""))
         except ValueError:
             days = 30
         days = max(1, min(days, 365))
@@ -222,8 +222,8 @@ def export_pdf(
     finding_rows = [["Finding", "Field", "Status", "Risk"]]
     for f in findings[:50]:
         finding_rows.append([
-            (f.category or "")[:45], (f.affected_field or "")[:35],
-            f.status or "", f.risk_level or "",
+            str(f.category or "")[:45], str(f.affected_field or "")[:35],
+            str(f.status or ""), str(f.risk_level or ""),
         ])
     if len(finding_rows) == 1:
         finding_rows.append(["No findings", "", "", ""])
@@ -258,11 +258,34 @@ def export_pdf(
         ("FONTSIZE", (0, 0), (-1, -1), 7),
     ]))
     story += [st, Spacer(1, 18), Paragraph("Officer review records are included in the inspection dataset and audit trail.", styles["Normal"])]
-    doc.build(story)
+    doc.build(story)  # type: ignore
     buffer.seek(0)
     return StreamingResponse(
         buffer, media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=legalmetrix_compliance_report.pdf"},
+    )
+
+
+@router.get("/scans/{scan_id}/pdf")
+def export_case_report(
+    scan_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Flow step 9: the violation report for one case, with evidence, for the legal officer."""
+    from fastapi import HTTPException
+    from ...services.case_report import build_case_report
+
+    scan = db.query(ScanSession).filter(ScanSession.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan session not found")
+    if scan.officer_id and scan.officer_id != current_user.id:
+        raise HTTPException(status_code=403, detail="This scan does not belong to the current officer")
+    if scan.status != "COMPLETE":
+        raise HTTPException(status_code=400, detail="Run the analysis before generating the report.")
+    return Response(
+        content=build_case_report(db, scan), media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=LegalMetrix_{scan_id}_report.pdf"},
     )
 
 

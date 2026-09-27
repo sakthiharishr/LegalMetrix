@@ -42,6 +42,9 @@ export const API_ENDPOINTS = {
   // Scan & Image Acquisition Endpoints (Phase 3)
   SCAN_CREATE: '/scans',
   SCAN_UPLOAD_IMAGE: '/scans/{scanId}/images',
+  SCAN_QUALITY_CHECK: '/scans/quality-check',
+  SCAN_FORWARD: '/scans/{scanId}/forward',
+  REPORT_CASE_PDF: '/reports/scans/{scanId}/pdf',
   SCAN_ANALYZE: '/scans/{scanId}/analyze',
   SCAN_STATUS: '/scans/{scanId}/status',
   // Compliance Analysis Endpoints (Phase 4)

@@ -162,7 +162,7 @@ export const ImageSlotCard = ({ slot, slotIndex, onPreview, onReplace, onRemove,
           {slot.qualityStatus === IMAGE_QUALITY.UNCLEAR && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <GlassBadge variant="danger"><AlertCircle size={12} style={{ marginRight: '4px' }} /> Unclear</GlassBadge>
-              <span style={{ fontSize: '10px', color: 'var(--color-danger)' }}>Image may not be clear enough for reliable text extraction.</span>
+              <span style={{ fontSize: '10px', color: 'var(--color-danger)' }}>{slot.qualityMessage || 'Image may not be clear enough for reliable text extraction.'} Use Replace to upload it again.</span>
             </div>
           )}
         </div>

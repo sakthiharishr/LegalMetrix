@@ -95,6 +95,7 @@ def get_full_analysis(scan_id: str, db: Session = Depends(get_db), current_user:
 
     return FullAnalysisResponse(
         scanId=scan_id,
+        caseStatus=session.case_status,
         timestamp=analysis.created_at.isoformat() if analysis.created_at else datetime.now(timezone.utc).isoformat(),
         productName=session.product_name or "Unidentified Commodity",
         summary=AnalysisSummary(

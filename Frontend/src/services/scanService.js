@@ -45,6 +45,21 @@ export const scanService = {
   },
 
   /**
+   * Check one photo's quality as soon as it is added (blur, light, size).
+   * Backend returns: { qualityStatus: GOOD | NEEDS_REVIEW | UNCLEAR, blurScore, message }
+   */
+  async checkImageQuality(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+      return await api.uploadFile(API_ENDPOINTS.SCAN_QUALITY_CHECK, formData);
+    } catch (error) {
+      if (!useMockApi()) throw error;
+      return { qualityStatus: 'GOOD', blurScore: 100, message: 'Image is clear.' };
+    }
+  },
+
+  /**
    * Upload a single image to an existing scan session.
    * @param {string} scanId - The scan session identifier
    * @param {File} file - The image file to upload

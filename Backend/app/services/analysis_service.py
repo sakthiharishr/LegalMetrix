@@ -27,14 +27,26 @@ def _field_items(field: str, ocr_items: List[Dict[str, Any]], fields: Dict[str, 
         "Commodity Name": r"DRINK|JUICE|BISCUIT|FOOD|WATER|MILK|SNACK",
         "Consumer Care": r"CONSUMER|CUSTOMER|HELPLINE|CALL\s+US|@",
         "Country of Origin": r"COUNTRY\s+OF\s+ORIGIN|MADE\s+IN|ORIGIN",
+        # Expiry is often "best before N months from mfg", so the manufacture date is part of the evidence.
+        "Use By / Expiry": r"BEST\s*BEFORE|USE\s*BY|EXPIR|MFG\.?\s*DATE|\bMFD\b|\bPKD\b",
+        "Unit Sale Price": r"U\.?S\.?P|UNIT\s*SALE|\bPER\s*(?:ML|G|KG|L)\b|/\s*(?:ML|G|KG|L)\b",
     }
     pattern = terms.get(field)
     if not pattern:
         return []
     matches = [item for item in ocr_items if re_search(pattern, str(item.get("text", "")))]
-    value = str(fields.get({"Manufacture / Packing Date": "manufacturing_date", "Batch/Lot": "batch_lot", "MRP": "mrp", "Net Quantity": "net_quantity"}.get(field, "")) or "")
+    key = {"Manufacture / Packing Date": "manufacturing_date", "Batch/Lot": "batch_lot", "MRP": "mrp", "Net Quantity": "net_quantity",
+           "Use By / Expiry": "use_by_date", "Unit Sale Price": "unit_sale_price"}.get(field, "")
+    value = str(fields.get(key) or "")
     if value:
         matches.extend(item for item in ocr_items if value.lower() in str(item.get("text", "")).lower() and item not in matches)
+    # Evidence should point at one photo: the one holding most of the matching text.
+    by_image: Dict[str, int] = {}
+    for item in matches:
+        by_image[str(item.get("image_id"))] = by_image.get(str(item.get("image_id")), 0) + 1
+    if by_image:
+        best = max(by_image, key=lambda k: by_image[k])
+        matches = [item for item in matches if str(item.get("image_id")) == best]
     return matches[:12]
 
 
@@ -136,6 +148,8 @@ def analyze_scan(db: Session, scan: ScanSession) -> Dict[str, Any]:
     scan.risk_level = evaluation["risk"]["level"]
     scan.compliance_status = evaluation["summary"]["status"]
     scan.status = "COMPLETE"
+    # Flow steps 5/5A/10: a compliant pack closes here; anything with findings waits to be forwarded.
+    scan.case_status = "READY_TO_FORWARD" if evaluation["findings"] else "NO_CASE"
 
     if product_name != "Unidentified Commodity":
         product = db.query(Product).filter(Product.id == scan.product_id).first() if scan.product_id else None

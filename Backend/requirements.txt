@@ -11,3 +11,5 @@ aiofiles>=23.2.1
 rapidocr>=3.0,<4
 onnxruntime>=1.7,<2
 reportlab>=4.0.0
+types-aiofiles
+types-reportlab

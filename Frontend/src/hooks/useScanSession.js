@@ -27,6 +27,7 @@ const createEmptySlot = (viewName) => ({
   fileSize: 0,
   uploadStatus: UPLOAD_STATUS.EMPTY,
   qualityStatus: IMAGE_QUALITY.PENDING,
+  qualityMessage: '',
   error: null,
   dimensions: null,
 });
@@ -198,9 +199,25 @@ export const useScanSession = () => {
         fileSize: file.size,
         uploadStatus: UPLOAD_STATUS.READY,
         qualityStatus: IMAGE_QUALITY.PENDING,
+        qualityMessage: 'Checking image quality...',
         error: null,
         dimensions: result.dimensions,
       };
+      return next;
+    });
+
+    // Flow step 2: check the photo straight away so an unclear one can be retaken before analysis.
+    let quality;
+    try {
+      quality = await scanService.checkImageQuality(file);
+    } catch (err) {
+      quality = { qualityStatus: IMAGE_QUALITY.NEEDS_REVIEW, message: 'Image quality could not be checked; it will be checked again during analysis.' };
+    }
+    setImages((prev) => {
+      const next = [...prev];
+      // The slot may have been replaced or cleared while the check was running.
+      if (next[slotIndex].file !== file) return prev;
+      next[slotIndex] = { ...next[slotIndex], qualityStatus: quality.qualityStatus, qualityMessage: quality.message || '' };
       return next;
     });
 
@@ -264,10 +281,15 @@ export const useScanSession = () => {
         });
 
         try {
-          await scanService.uploadImage(session.scanId, img.file, img.viewName);
+          const uploaded = await scanService.uploadImage(session.scanId, img.file, img.viewName);
           setImages((prev) => {
             const next = [...prev];
-            next[i] = { ...next[i], uploadStatus: UPLOAD_STATUS.UPLOADED };
+            next[i] = {
+              ...next[i],
+              uploadStatus: UPLOAD_STATUS.UPLOADED,
+              qualityStatus: uploaded?.qualityStatus || next[i].qualityStatus,
+              qualityMessage: uploaded?.message || next[i].qualityMessage,
+            };
             return next;
           });
         } catch (err) {
@@ -361,7 +383,11 @@ export const useScanSession = () => {
     ANALYSIS_STATUS.COMPLIANCE_ANALYSIS,
   ].includes(analysisStatus);
 
-  const canAnalyze = hasMinimumImages && !isAnalyzing && analysisStatus !== ANALYSIS_STATUS.COMPLETE;
+  const withFiles = images.filter((img) => img.file && img.uploadStatus !== UPLOAD_STATUS.FAILED);
+  const unclearImages = withFiles.filter((img) => img.qualityStatus === IMAGE_QUALITY.UNCLEAR);
+  const qualityChecking = withFiles.some((img) => img.qualityStatus === IMAGE_QUALITY.PENDING);
+  const canAnalyze = hasMinimumImages && !isAnalyzing && !qualityChecking && unclearImages.length === 0
+    && analysisStatus !== ANALYSIS_STATUS.COMPLETE;
 
   return {
     // State
@@ -377,6 +403,8 @@ export const useScanSession = () => {
     hasMinimumImages,
     isAnalyzing,
     canAnalyze,
+    unclearImages,
+    qualityChecking,
 
     // Actions
     addImage,

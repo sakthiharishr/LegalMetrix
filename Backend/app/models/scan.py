@@ -13,6 +13,8 @@ class ScanSession(Base):
     risk_score = Column(Float, default=0.0)
     risk_level = Column(String, default="LOW_RISK")
     compliance_status = Column(String, default="PENDING")
+    # Case workflow: NO_CASE (compliant) | READY_TO_FORWARD | FORWARDED | CONFIRMED | INVALIDATED | UNDER_REVIEW
+    case_status = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class ScanImage(Base):

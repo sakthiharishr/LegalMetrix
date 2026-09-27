@@ -52,6 +52,7 @@ class AnalysisImage(BaseModel):
 
 class FullAnalysisResponse(BaseModel):
     scanId: str
+    caseStatus: Optional[str] = None
     timestamp: str
     productName: str
     summary: AnalysisSummary
