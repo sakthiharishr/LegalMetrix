@@ -55,11 +55,18 @@ const formatFileSize = (bytes) => {
  */
 const validateImageFile = (file, existingSlots) => {
   return new Promise((resolve) => {
-    // Type check
-    if (!SCAN_LIMITS.ACCEPTED_TYPES.includes(file.type)) {
+    if (!(file instanceof Blob)) {
+      return resolve({ valid: false, error: 'No image file was received. Please choose the file again.' });
+    }
+
+    // Type check: some phones/browsers report an empty or non-standard MIME type, so fall back to the extension.
+    const extension = (file.name || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || '';
+    const typeOk = SCAN_LIMITS.ACCEPTED_TYPES.includes(file.type);
+    const extensionOk = SCAN_LIMITS.ACCEPTED_EXTENSIONS.split(',').includes(extension);
+    if (!typeOk && !extensionOk) {
       return resolve({
         valid: false,
-        error: `Unsupported file type "${file.type}". Accepted: JPG, PNG, WEBP.`,
+        error: `Unsupported file "${file.name || 'image'}". Accepted: JPG, JPEG, PNG, WEBP.`,
       });
     }
 
@@ -135,6 +142,10 @@ export const useScanSession = () => {
 
   // Prevent concurrent submissions
   const isSubmitting = useRef(false);
+  // Latest slots, so several files validated at once all see each other for the duplicate check.
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
+  const pendingFiles = useRef([]);
 
   // ── Image Actions ──────────────────────────────────────────────────────
 
@@ -150,9 +161,12 @@ export const useScanSession = () => {
       return next;
     });
 
-    // Validate
-    const currentImages = images; // captured for duplicate check
-    const result = await validateImageFile(file, currentImages);
+    // Validate against the other slots plus files still being validated in the same batch.
+    const others = imagesRef.current.filter((_, i) => i !== slotIndex);
+    const pending = pendingFiles.current.map((f) => ({ file: f, fileName: f.name, fileSize: f.size }));
+    pendingFiles.current.push(file);
+    const result = await validateImageFile(file, [...others, ...pending]);
+    pendingFiles.current = pendingFiles.current.filter((f) => f !== file);
 
     if (!result.valid) {
       setImages((prev) => {
@@ -191,7 +205,7 @@ export const useScanSession = () => {
     });
 
     return true;
-  }, [images]);
+  }, []);
 
   const removeImage = useCallback((slotIndex) => {
     setImages((prev) => {
@@ -204,12 +218,8 @@ export const useScanSession = () => {
     });
   }, []);
 
-  const replaceImage = useCallback(async (slotIndex, file) => {
-    removeImage(slotIndex);
-    // Small delay to allow state to settle
-    await new Promise((r) => setTimeout(r, 50));
-    return addImage(slotIndex, file);
-  }, [addImage, removeImage]);
+  // addImage already revokes and overwrites the slot, so replacing is the same operation.
+  const replaceImage = addImage;
 
   // ── Metadata Actions ───────────────────────────────────────────────────
 

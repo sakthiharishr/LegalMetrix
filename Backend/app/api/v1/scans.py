@@ -63,6 +63,10 @@ async def upload_scan_image(
 
     extension = os.path.splitext(image.filename or "")[1].lower()
     if extension not in ALLOWED_EXTENSIONS:
+        # Camera captures can arrive without an extension; fall back to the declared image type.
+        extension = {"image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png", "image/webp": ".webp"}.get(
+            (image.content_type or "").lower(), extension)
+    if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported image type. Use JPG, JPEG, PNG or WEBP.")
 
     content = await image.read()
@@ -72,7 +76,9 @@ async def upload_scan_image(
         raise HTTPException(status_code=413, detail="Image exceeds the 10 MB upload limit")
 
     image_id = f"IMG-{uuid.uuid4().hex[:8].upper()}"
-    safe_name = os.path.basename(image.filename or f"{image_id}{extension}").replace(" ", "_")
+    safe_name = os.path.basename(image.filename or image_id).replace(" ", "_")
+    if not safe_name.lower().endswith(extension):
+        safe_name += extension
     filename = f"{scan_id}_{image_id}_{safe_name}"
     file_path = os.path.join(settings.UPLOAD_DIR, filename)
 

@@ -58,11 +58,14 @@ export const ComplianceAnalysis = () => {
 
   useEffect(() => {
     if (explicitScanId) { setSelectedScanId(explicitScanId); return; }
+    // "All Products" navigates here without a scan: show the list instead of the last opened scan.
+    setSelectedScanId(null);
     let active = true;
     setSelectorLoading(true); setSelectorError(null);
     analysisService.getAvailableScans().then(result => { if (active) setItems(result.items || []); }).catch(err => { if (active) setSelectorError(err.message || 'Failed to load analyzed products.'); }).finally(() => { if (active) setSelectorLoading(false); });
     return () => { active = false; };
-  }, [explicitScanId]);
+    // location.key changes on every navigation, so "All Products" works even when no scan was passed either time.
+  }, [explicitScanId, location.key]);
 
   if (!selectedScanId) return <AnalysisSelector items={items} loading={selectorLoading} error={selectorError} retry={() => window.location.reload()} onSelect={(id, goScan) => goScan ? navigate('/scan') : setSelectedScanId(id)} />;
 

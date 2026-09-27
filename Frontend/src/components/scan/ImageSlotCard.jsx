@@ -1,13 +1,9 @@
-import React, { useRef } from 'react';
-import { UPLOAD_STATUS, IMAGE_QUALITY } from '../../utils/constants';
+import React, { useRef, useState } from 'react';
+import { UPLOAD_STATUS, IMAGE_QUALITY, SCAN_LIMITS } from '../../utils/constants';
 import GlassCard from '../ui/GlassCard';
 import GlassButton from '../ui/GlassButton';
 import GlassBadge from '../ui/GlassBadge';
 import { ImagePlus, Eye, RefreshCw, Trash2, AlertCircle, CheckCircle2, Clock, Loader } from 'lucide-react';
-
-const SCAN_LIMITS = {
-  ACCEPTED_EXTENSIONS: 'image/jpeg,image/png,image/webp'
-};
 
 const formatSize = (b) => {
   if (!b) return '';
@@ -16,6 +12,23 @@ const formatSize = (b) => {
 
 export const ImageSlotCard = ({ slot, slotIndex, onPreview, onReplace, onRemove, disabled = false }) => {
   const fileInputRef = useRef(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const canAccept = !disabled && slot.uploadStatus !== UPLOAD_STATUS.UPLOADING && slot.uploadStatus !== UPLOAD_STATUS.VALIDATING;
+
+  const dropHandlers = {
+    onDragOver: (e) => {
+      e.preventDefault();
+      if (canAccept) setIsDragOver(true);
+    },
+    onDragLeave: () => setIsDragOver(false),
+    onDrop: (e) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file && canAccept) onReplace(file);
+    },
+  };
 
   const handleContainerClick = () => {
     if (!disabled && (!slot.uploadStatus || slot.uploadStatus === UPLOAD_STATUS.EMPTY || slot.uploadStatus === UPLOAD_STATUS.FAILED)) {
@@ -32,11 +45,7 @@ export const ImageSlotCard = ({ slot, slotIndex, onPreview, onReplace, onRemove,
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (slot.uploadStatus === UPLOAD_STATUS.EMPTY || slot.uploadStatus === UPLOAD_STATUS.FAILED) {
-        onReplace(slotIndex, file); 
-      } else {
-        onReplace(slotIndex, file);
-      }
+      onReplace(file);
     }
     if (e.target) {
       e.target.value = '';
@@ -174,7 +183,17 @@ export const ImageSlotCard = ({ slot, slotIndex, onPreview, onReplace, onRemove,
   };
 
   return (
-    <GlassCard style={{ padding: 'var(--spacing-md)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <GlassCard
+      {...dropHandlers}
+      style={{
+        padding: 'var(--spacing-md)',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        outline: isDragOver ? '2px solid var(--color-brand-cyan)' : 'none',
+        outlineOffset: '-2px',
+      }}
+    >
       <input
         type="file"
         ref={fileInputRef}

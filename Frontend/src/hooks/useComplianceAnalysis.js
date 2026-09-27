@@ -2,53 +2,43 @@ import { useState, useEffect, useCallback } from 'react';
 import analysisService from '../services/analysisService';
 
 /**
- * Custom hook to manage Compliance Analysis state and data fetching.
- *
- * @param {string} initialScanId - The scan ID passed from routing state
+ * Loads the compliance analysis for exactly the scan it is given.
+ * The scan ID is always taken from the caller so switching scans never shows the previous result.
  */
-export const useComplianceAnalysis = (initialScanId) => {
-  const resolvedScanId = initialScanId || localStorage.getItem('legalmetrix_active_scan_id') || 'latest';
-  const [scanId, setScanId] = useState(resolvedScanId);
+export const useComplianceAnalysis = (scanId) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
 
-  const fetchAnalysis = useCallback(async (id) => {
+  const fetchAnalysis = useCallback(async (id, isActive = () => true) => {
     if (!id) return;
-    
     setLoading(true);
     setError(null);
-    
+    setData(null);
     try {
       const result = await analysisService.getFullAnalysis(id);
+      if (!isActive()) return;
       setData(result);
-      if (result && result.scanId) {
-        setScanId(result.scanId);
-        localStorage.setItem('legalmetrix_active_scan_id', result.scanId);
-      }
+      if (result?.scanId) localStorage.setItem('legalmetrix_active_scan_id', result.scanId);
     } catch (err) {
-      setError(err.message || 'Failed to load analysis data.');
+      if (isActive()) setError(err.message || 'Failed to load analysis data.');
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const targetId = scanId || initialScanId || localStorage.getItem('legalmetrix_active_scan_id') || 'latest';
-    fetchAnalysis(targetId);
-  }, [scanId, initialScanId, fetchAnalysis]);
+    // Ignore a slower response for a scan the user has already moved away from.
+    let active = true;
+    fetchAnalysis(scanId, () => active);
+    return () => {
+      active = false;
+    };
+  }, [scanId, fetchAnalysis]);
 
-  const retry = () => {
-    if (scanId) fetchAnalysis(scanId);
-  };
+  const retry = () => fetchAnalysis(scanId);
 
-  return {
-    scanId,
-    loading,
-    error,
-    data,
-    retry
-  };
+  return { scanId, loading, error, data, retry };
 };
 
 export default useComplianceAnalysis;
