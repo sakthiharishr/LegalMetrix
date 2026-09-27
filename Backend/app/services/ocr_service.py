@@ -1,3 +1,4 @@
+import difflib
 from functools import lru_cache
 import re
 from typing import Any, Dict, List, Tuple
@@ -182,6 +183,94 @@ def _target_regions(
     return regions
 
 
+def _compact(text: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", str(text).upper())
+
+
+def _merge_duplicates(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Each pass re-reads the same printed line, so one line can come back several times with small
+    differences ("...DIST. BU" from a clipped crop, "...DIST. BULDHANA PIN 444 303" in full). Keep one
+    read per printed line: the most complete confident one. Low-confidence noise lying inside a
+    confident line is dropped too."""
+    def area(rect):
+        return max(0.0, rect[2] - rect[0]) * max(0.0, rect[3] - rect[1])
+
+    def quality(item):
+        # Confidence first; among similar confidences the more complete read wins.
+        return float(item["confidence"]) + 0.3 * min(60, len(_compact(item["text"])))
+
+    ranked = sorted(items, key=quality, reverse=True)
+    kept: List[Dict[str, Any]] = []
+    for item in ranked:
+        rect = _box_rect(item.get("box") or [])
+        text = _compact(item["text"])
+        duplicate = False
+        for other in kept:
+            orect = _box_rect(other.get("box") or [])
+            ix = max(0.0, min(rect[2], orect[2]) - max(rect[0], orect[0]))
+            iy = max(0.0, min(rect[3], orect[3]) - max(rect[1], orect[1]))
+            inter = ix * iy
+            if inter / max(1.0, min(area(rect), area(orect))) < 0.5:
+                continue
+            otext = _compact(other["text"])
+            if otext and otext in text and len(text) > len(otext):
+                # The kept read is a clipped piece ("es)", "MULTISURFA") of this complete one.
+                if float(item["confidence"]) >= 75:
+                    kept[kept.index(other)] = item
+                duplicate = True
+                break
+            similar = bool(text) and (text in otext or difflib.SequenceMatcher(None, text, otext).ratio() >= 0.6
+                                      or difflib.SequenceMatcher(None, text, otext[:len(text)]).ratio() >= 0.75
+                                      or difflib.SequenceMatcher(None, text, otext[-len(text):]).ratio() >= 0.75)
+            # Noise: this read lies inside a clearly more confident line.
+            noise = inter / max(1.0, area(rect)) >= 0.8 and float(item["confidence"]) < float(other["confidence"]) - 10
+            if similar or noise:
+                duplicate = True
+                break
+        if not duplicate:
+            kept.append(item)
+    return kept
+
+
+def _low_confidence_blocks(items: List[Dict[str, Any]], shape, max_blocks: int = 3):
+    """Group low-confidence lines that sit together into blocks: (left, top, right, bottom, zoom)."""
+    height, width = shape[:2]
+    weak = []
+    for item in items:
+        if float(item["confidence"]) >= 88 or len(_compact(item["text"])) < 6:
+            continue
+        x1, y1, x2, y2 = _box_rect(item.get("box") or [])
+        if x2 > x1 and y2 > y1:
+            weak.append([x1, y1, x2, y2, min(x2 - x1, y2 - y1)])
+    weak.sort(key=lambda r: r[1])
+
+    blocks: List[List[float]] = []
+    for x1, y1, x2, y2, h in weak:
+        for block in blocks:
+            near_y = y1 <= block[3] + 1.5 * h and y2 >= block[1] - 1.5 * h
+            near_x = x1 <= block[2] + 2 * h and x2 >= block[0] - 2 * h
+            if near_y and near_x:
+                block[0], block[1] = min(block[0], x1), min(block[1], y1)
+                block[2], block[3] = max(block[2], x2), max(block[3], y2)
+                block[4] = min(block[4], h)
+                break
+        else:
+            blocks.append([x1, y1, x2, y2, h])
+
+    # Biggest blocks first: they hold the most unreadable text.
+    blocks.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
+    result = []
+    for x1, y1, x2, y2, h in blocks[:max_blocks]:
+        pad = max(8, int(h))
+        left, top = max(0, int(x1 - pad)), max(0, int(y1 - pad))
+        right, bottom = min(width, int(x2 + pad)), min(height, int(y2 + pad))
+        # Aim for ~40 px letters, never shrink, and keep the zoomed crop a sane size.
+        scale = max(1.0, min(3.0, 40.0 / max(1.0, h), 2600.0 / max(1, right - left, bottom - top)))
+        if right > left and bottom > top and scale > 1.05:
+            result.append((left, top, right, bottom, scale))
+    return result
+
+
 def _target_variant(crop: np.ndarray):
     """One controlled fallback for small stamped declarations."""
     scale = 2.5
@@ -303,7 +392,23 @@ def run_ocr(image_path: str) -> Dict[str, Any]:
 
         collect(texts, scores, boxes, region_name, from_crop)
 
-    collected = _spatial_sort(list(collected_by_text.values()))
+    # ---------------------------------------------------------------
+    # PASS 4: dense small print (addresses, consumer-care blocks) often
+    # comes back garbled at low confidence. Re-read each such block once,
+    # zoomed in; the duplicate merge below keeps the better read per line.
+    # ---------------------------------------------------------------
+    current = _merge_duplicates(list(collected_by_text.values()))
+    for index, (left, top, right, bottom, scale) in enumerate(_low_confidence_blocks(current, image.shape), 1):
+        crop = image[top:bottom, left:right]
+        zoomed = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        texts, scores, boxes = _run_single(engine, zoomed)
+
+        def from_block(x, y, left=left, top=top, scale=scale):
+            return x / scale + left, y / scale + top
+
+        collect(texts, scores, boxes, f"refine-{index}", from_block)
+
+    collected = _spatial_sort(_merge_duplicates(list(collected_by_text.values())))
     for index, item in enumerate(collected, 1):
         item["id"] = f"OCR-{index:03d}"
 

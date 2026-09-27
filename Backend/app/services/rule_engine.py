@@ -81,7 +81,8 @@ def analyze_packaging_compliance(extracted_text: str = "", metadata: Dict[str, A
 
     mrp = metadata.get("mrp")
     mc = _conf(metadata, "mrp", 0)
-    inclusive = bool(re.search(r"incl(?:usive)?\.?\s*(?:of)?\s*all\s*taxes|inclusive\s+of\s+all\s+taxes", text, re.I))
+    # OCR drops or swaps letters in this small print ("inclusive of al taxes", "INCLOFALLTAXES").
+    inclusive = bool(metadata.get("mrp_tax_inclusive")) or bool(re.search(r"in[ck][li1]\w*\s*\.?\s*(?:of)?\s*a[li1]+\s*tax", text, re.I))
     if mrp and mc >= 75 and inclusive:
         checks.append(_check(LEGAL_METROLOGY_RULES["RULE_6_1_E"], "Maximum Retail Price (MRP)", "MRP with applicable tax-inclusive wording", f"₹{mrp}", "COMPLIANT", mc, "MRP and tax-inclusive wording were detected."))
     elif mrp and mc >= 75:

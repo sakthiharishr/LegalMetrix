@@ -67,7 +67,7 @@ def get_full_analysis(scan_id: str, db: Session = Depends(get_db), current_user:
     extracted = []
     field_map = [
         ("Product Name", "product_name"), ("Brand", "brand"), ("MRP", "mrp"),
-        ("Net Quantity", "net_quantity"), ("Manufacturer", "manufacturer"),
+        ("Unit Sale Price", "unit_sale_price"), ("Net Quantity", "net_quantity"), ("Manufacturer", "manufacturer"),
         ("Packer", "packer"), ("Importer", "importer"), ("Batch/Lot", "batch_lot"),
         ("Date of Mfg/Packing", "manufacturing_date"), ("Use By / Expiry", "use_by_date"), ("Consumer Care Email", "consumer_email"),
         ("Consumer Care Phone", "consumer_phone"), ("Country of Origin", "country_of_origin"),
